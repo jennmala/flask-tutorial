@@ -1,52 +1,79 @@
-from flask import Flask, render_template, url_for, flash, request, get_flashed_messages, session, redirect, abort
+import sqlite3
+import os
+from flask import Flask, flash, render_template, request, g, abort
+from FDataBase import FDataBase
 
 
-app=Flask(__name__)
-app.config['SECRET_KEY'] = 'jhbdwdaiwjjowfrjwoijfwoiejfwa'
+# config
+DATABASE = '/tmp/flsite.db'
+DEBUG = True
+SECRET_KEY = 'wyeuwqy72iulf,no,g>dsfhv'
 
-menu= [ {'name': 'install', 'url': 'install-flask'},
-    {'name': 'first', 'url': 'first-app'},
-    {'name': 'feedback', 'url': 'contact'} ]
+app = Flask(__name__)
+app.config.from_object(__name__)
 
+app.config.update(dict(DATABASE=os.path.join(app.root_path, 'flsite.db')))
 
-@app.route('/index')
+def connect_db():
+    conn = sqlite3.connect(app.config['DATABASE'])
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def create_db():
+    db = connect_db()
+    with app.open_resource('sq_db.sql', mode='r') as f:
+        db.cursor().executescript(f.read())
+    db.commit()
+    db.close()
+
+def get_db():
+    if not hasattr(g, 'link_db'):
+        g.link_db = connect_db()
+    return g.link_db
+
 @app.route('/')
 def index():
-    print(url_for('index'))
-    return render_template('index.html', menu=menu)
+    db = get_db()
+    dbase = FDataBase(db)
+    return render_template('index.html', menu=dbase.getMenu(), posts=dbase.getPostAnonce())
 
-@app.route('/about')
-def about():
-    print(url_for('about'))
-    return render_template('about.html', title='about', menu=menu)
+@app.route('/add-post', methods=['POST', 'GET'])    
+def addPost():
+    db=get_db()
+    dbase = FDataBase(db)
 
-@app.route('/contact', methods=['POST', 'GET'])
-def contact(): 
     if request.method == 'POST':
-        if len(request.form['username']) > 2:
-            flash('sent')
+        if len(request.form['name']) > 4 and len(request.form['post']) > 10:
+            res = dbase.addPost(request.form['name'], request.form['post'], request.form['url'])
+            if not res:
+                flash('adding article error')
+            else: 
+                flash('article added successfully')
         else:
-            flash('error')    
-    return render_template('contact.html', title='feedback', menu=menu)
+            flash('adding article error')
+
+    return render_template('add_post.html', menu=dbase.getMenu(), title='adding an article')
+
+@app.route('/post/<alias>')
+def showPost(alias):
+    db = get_db()
+    dbase = FDataBase(db)
+    title, post = dbase.getPost(alias)
+    if not post:
+        abort(404)
+
+    return render_template('post.html', menu=dbase.getMenu(), title=title, post=post) 
+
+
+@app.teardown_appcontext
+def close_db(error):
+    if hasattr(g, 'link_db'):
+        g.link_db.close()
 
 @app.errorhandler(404)
-def pageNotFound(error):
-    return render_template('page404.html', title='Page not found', menu=menu), 404
+def pageNot(error):
+    return ('Page not found', 404)
 
-@app.route('/login', methods=['POST', 'GET'])
-def login():
-    if 'userLogged' in session:
-        return redirect(url_for('profile', username=session['userLogged']))
-    elif request.method == 'POST' and request.form['username'] == 'selfedu' and request.form['psw'] == '123':
-        session['userLogged'] = request.form['username']
-        return redirect(url_for('profile', username=session['userLogged']))
-    return render_template ('login.html', title='Authorization', menu=menu)
-
-@app.route('/profile/<username>')
-def profile(username):
-    if 'userLogged' not in session or session['userLogged'] != username:
-        abort(401)
-    return f'Users profile: {username}' 
 
 if __name__ == '__main__':
     app.run(debug=True)

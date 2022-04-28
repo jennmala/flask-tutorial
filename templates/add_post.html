@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+
+
+{% block content %}
+{{ super() }}
+
+{% for cat, msg in get_flashed_messages(True) %}
+<div> {{ msg }}</div>
+{% endfor %}
+
+<form action="{{ url_for('addPost') }}" method="post">
+    <p><label for="">Article name: <input type="text" name="name" value="" required></label></p>
+    <p><label for="">Article URL: <input type="text" name="url" value="" required></label></p>
+    <p>Article text:</p>
+    <p><textarea name="post" id="" cols="30" rows="10"></textarea></p>
+    <p><input type="submit" value="Add article"></p>
+</form>
+
+{% endblock %}
