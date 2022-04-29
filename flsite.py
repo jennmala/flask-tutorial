@@ -13,6 +13,7 @@ from UserLogin import UserLogin
 DATABASE = '/tmp/flsite.db'
 DEBUG = True
 SECRET_KEY = 'wyeuwqy72iulf,no,g>dsfhv'
+MAX_CONTENT_LENGTH = 1024 *1024
 
 app = Flask(__name__)
 app.config.from_object(__name__)
@@ -104,8 +105,6 @@ def register():
         else:
             flash('Fields are fulfilled incorrect')
     return render_template('register.html', menu=dbase.getMenu(), title='Registration') 
-  
-
 
 dbase = None
 @app.before_request
@@ -126,8 +125,35 @@ def pageNot(error):
 @app.route('/profile')
 @login_required
 def profile():
-    return f"""<p><a href="{url_for('logout')}">LogOut</a></p>
-                <p>user info: {current_user.get_id()}"""
+    return render_template('profile.html', menu=dbase.getMenu(), title='Profile')
+
+@app.route('/userava')
+@login_required
+def userava():
+    img = current_user.getAvatar(app)
+    if not img:
+        return ''
+    h = make_response(img)
+    h.headers['Content-Type'] = 'image/png'
+    return h
+
+@app.route('/upload', methods=['GET', 'POST'])
+@login_required
+def upload():
+    if request.method == 'POST':
+        file = request.files['file']
+        if file and current_user.verifyExt(file.filename):
+            try:
+                img = file.read()
+                res = dbase.updateUserAvatar(img, current_user.get_id())
+                if not res:
+                    flash('Update avatar error', 'error')
+                flash('Avatar updated', 'success')
+            except FileNotFoundError as e:
+                flash('File reading error', 'error')
+        else:
+            flash('Update avatar error', 'error')
+    return redirect(url_for('profile'))     
 
 @app.route('/logout')
 @login_required
