@@ -7,12 +7,14 @@
     <div class="{{ cat }}">{{ msg }}</div>
 {% endfor %} 
 
-<form action="" method="post">
+<form action="{{ url_for('register') }}" method="post">
+    <p><label for="">Name: <input type="text" name="name" value="" required></label></p>
     <p><label for="">Email: <input type="text" name="email" value="" required></label></p>
     <p><label for="">Password: <input type="password" name="psw" value="" required></label></p>
-    <p><label for=""><input type="checkbox" name="remainme">Remember me</label></p>
-    <p><input type="submit"value="LogIn"></p>   
-    <p><a href="{{ url_for('register') }}">Registration</a></p> 
+    <p><label for="">Repeat password: <input type="password" name="psw2" value="" required></label></p>
+
+    <p><input type="submit"value="Register"></p>   
+    <p><a href="{{ url_for('login') }}">LogIn</a></p> 
 </form>
 
 {% endblock %} 

@@ -1,7 +1,12 @@
 import sqlite3
 import os
-from flask import Flask, flash, render_template, request, g, abort
+from flask import Flask, flash, make_response, render_template, request, g, abort, redirect, url_for
+from werkzeug.security import generate_password_hash, check_password_hash
+from flask_login import LoginManager, current_user, login_required, login_user, logout_user
+
 from FDataBase import FDataBase
+from UserLogin import UserLogin
+
 
 
 # config
@@ -13,6 +18,17 @@ app = Flask(__name__)
 app.config.from_object(__name__)
 
 app.config.update(dict(DATABASE=os.path.join(app.root_path, 'flsite.db')))
+
+login_manager = LoginManager(app)
+login_manager.login_view = 'login'
+login_manager.login_message = 'Login to access this page.'
+login_manager.login_message_category = 'success'
+
+@login_manager.user_loader
+def load_user(user_id):
+    print('load_user')
+    return UserLogin().fromDB(user_id, dbase)
+
 
 def connect_db():
     conn = sqlite3.connect(app.config['DATABASE'])
@@ -33,15 +49,10 @@ def get_db():
 
 @app.route('/')
 def index():
-    db = get_db()
-    dbase = FDataBase(db)
     return render_template('index.html', menu=dbase.getMenu(), posts=dbase.getPostAnonce())
 
 @app.route('/add-post', methods=['POST', 'GET'])    
-def addPost():
-    db=get_db()
-    dbase = FDataBase(db)
-
+def addPost():    
     if request.method == 'POST':
         if len(request.form['name']) > 4 and len(request.form['post']) > 10:
             res = dbase.addPost(request.form['name'], request.form['post'], request.form['url'])
@@ -55,15 +66,53 @@ def addPost():
     return render_template('add_post.html', menu=dbase.getMenu(), title='adding an article')
 
 @app.route('/post/<alias>')
-def showPost(alias):
-    db = get_db()
-    dbase = FDataBase(db)
+@login_required
+def showPost(alias):    
     title, post = dbase.getPost(alias)
     if not post:
         abort(404)
 
     return render_template('post.html', menu=dbase.getMenu(), title=title, post=post) 
 
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if current_user.is_authenticated:
+        return redirect(url_for('profile'))
+    if request.method == 'POST':
+        user = dbase.getUserByEmail(request.form['email'])
+        if user and check_password_hash(user['psw'], request.form['psw']):
+            userLogin = UserLogin().create(user)
+            rm = True if request.form.get('remainme') else False
+            login_user(userLogin, remember=rm)
+            return redirect(request.args.get('next') or url_for('profile'))
+        flash('login/passwors are not correct', 'error')
+    return render_template('login.html', menu=dbase.getMenu(), title='Authorization') 
+
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        if len(request.form['name']) > 4 and len(request.form['email']) >4 \
+            and len(request.form['psw']) > 4 and request.form['psw'] == request.form['psw2']:
+            hash = generate_password_hash(request.form['psw'])
+            res = dbase.addUser(request.form['name'], request.form['email'], hash)
+            if res:
+                flash('You registered successfully', 'success')
+                return redirect(url_for('login'))
+            else:
+                flash('DB adding error', 'error') 
+        else:
+            flash('Fields are fulfilled incorrect')
+    return render_template('register.html', menu=dbase.getMenu(), title='Registration') 
+  
+
+
+dbase = None
+@app.before_request
+def before_request():
+    global dbase
+    db = get_db()
+    dbase = FDataBase(db)
 
 @app.teardown_appcontext
 def close_db(error):
@@ -74,6 +123,34 @@ def close_db(error):
 def pageNot(error):
     return ('Page not found', 404)
 
+@app.route('/profile')
+@login_required
+def profile():
+    return f"""<p><a href="{url_for('logout')}">LogOut</a></p>
+                <p>user info: {current_user.get_id()}"""
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    flash('You are logged out successfully', 'success')
+    return redirect(url_for('login'))
+
+
+# @app.route('/login-test')
+# def logintest():    
+#     log= ''
+#     if request.cookies.get('logged'):
+#         log = request.cookies.get('logged')
+#     res = make_response(f'<h1>Authorization form</h1><p>logged: {log} </p>')
+#     res.set_cookie('logged', 'yes', 30*24*3600)    
+#     return res
+
+# @app.route('/logout-test')
+# def logouttest():        
+#     res = make_response(f'<p>You are no longer loged in</p>')
+#     res.set_cookie('logged', '', 0)    
+#     return res
 
 if __name__ == '__main__':
     app.run(debug=True)
