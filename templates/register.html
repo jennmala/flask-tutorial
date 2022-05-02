@@ -8,10 +8,31 @@
 {% endfor %} 
 
 <form action="{{ url_for('register') }}" method="post">
-    <p><label for="">Name: <input type="text" name="name" value="" required></label></p>
+    {{ form.hidden_tag() }}
+
+    {% for field in form if field.name not in ['csrf_token', 'remember', 'submit'] %}
+
+    <p>
+        {{ field.label() }} 
+
+            {% if field.errors %}
+            {{ field(class="invalid") }}
+            <span class="invalid-feedback">
+                {% for e in field.errors %}
+                    {{ e }}
+                {% endfor %}                
+            </span>
+            {% else %}
+            {{ field() }}
+            {% endif %} 
+    </p>
+
+    {% endfor %}
+
+    <!-- <p><label for="">Name: <input type="text" name="name" value="" required></label></p>
     <p><label for="">Email: <input type="text" name="email" value="" required></label></p>
     <p><label for="">Password: <input type="password" name="psw" value="" required></label></p>
-    <p><label for="">Repeat password: <input type="password" name="psw2" value="" required></label></p>
+    <p><label for="">Repeat password: <input type="password" name="psw2" value="" required></label></p> -->
 
     <p><input type="submit"value="Register"></p>   
     <p><a href="{{ url_for('login') }}">LogIn</a></p> 
